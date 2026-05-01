@@ -25,10 +25,14 @@ async def go(ctx):
     if author not in Pokemon.pokemons.keys():
         pokemon = Pokemon(author)  # Yeni bir Pokémon oluşturma
         image_url = await pokemon.show_img()  # Pokémon resminin URL'sini alma
+        name_url = await pokemon.get_name()  # Pokémon adının URL'sini alma
+        type_url = await pokemon.pokemon_type()  # Pokémon türünün URL'sini alma
         if image_url:
             embed = discord.Embed()  # Gömülü mesajı oluşturma
             embed.set_image(url=image_url)  # Pokémon'un görüntüsünün ayarlanması
             await ctx.send(embed=embed)  # Görüntü içeren gömülü bir mesaj gönderme
+            await ctx.send(f"Pokémonunuzun adı: {name_url}")  # Pokémon adını içeren bir mesaj gönderme
+            await ctx.send(f"Pokémonunuzun türü: {type_url}")  # Pokémon türünü içeren bir mesaj gönderme
         else:
             await ctx.send("Pokémonun görüntüsü yüklenemedi!")
     else:
