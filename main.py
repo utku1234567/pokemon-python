@@ -1,41 +1,98 @@
 import discord
 from discord.ext import commands
 from config import token
-from logic import Pokemon
+from logic import Pokemon, Wizard, Fighter
+import random
 
-# Bot için yetkileri/intents ayarlama
-intents = discord.Intents.default()  # Varsayılan ayarların alınması
-intents.messages = True              # Botun mesajları işlemesine izin verme
-intents.message_content = True       # Botun mesaj içeriğini okumasına izin verme
-intents.guilds = True                # Botun sunucularla çalışmasına izin verme
+# 🔹 Intent ayarları
+intents = discord.Intents.default()
+intents.message_content = True
 
-# Tanımlanmış bir komut önekine ve etkinleştirilmiş amaçlara sahip bir bot oluşturma
+# 🔹 Bot oluşturma (BU EN ÜSTTE OLMAK ZORUNDA)
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# Bot çalışmaya hazır olduğunda tetiklenen bir olay
+
 @bot.event
 async def on_ready():
-    print(f'Giriş yapıldı:  {bot.user.name}')  # Botun adını konsola çıktı olarak verir
+    print(f'Giriş yapıldı: {bot.user.name}')
 
-# '!go' komutu
+
+# 🔹 Pokémon oluştur
 @bot.command()
 async def go(ctx):
-    author = ctx.author.name  # Mesaj yazarının adını alma
-    # Kullanıcının zaten bir Pokémon'u olup olmadığını kontrol edin. Eğer yoksa, o zaman...
-    if author not in Pokemon.pokemons.keys():
-        pokemon = Pokemon(author)  # Yeni bir Pokémon oluşturma
-        image_url = await pokemon.show_img()  # Pokémon resminin URL'sini alma
-        name_url = await pokemon.get_name()  # Pokémon adının URL'sini alma
-        type_url = await pokemon.pokemon_type()  # Pokémon türünün URL'sini alma
-        if image_url:
-            embed = discord.Embed()  # Gömülü mesajı oluşturma
-            embed.set_image(url=image_url)  # Pokémon'un görüntüsünün ayarlanması
-            await ctx.send(embed=embed)  # Görüntü içeren gömülü bir mesaj gönderme
-            await ctx.send(f"Pokémonunuzun adı: {name_url}")  # Pokémon adını içeren bir mesaj gönderme
-            await ctx.send(f"Pokémonunuzun türü: {type_url}")  # Pokémon türünü içeren bir mesaj gönderme
-        else:
-            await ctx.send("Pokémonun görüntüsü yüklenemedi!")
+    author = ctx.author.name
+
+    if author not in Pokemon.pokemons:
+
+        # 🔥 rastgele sınıf seç
+        cls = random.choice([Pokemon, Wizard, Fighter])
+        pokemon = cls(author)
+
+        await pokemon.fetch_data()
+
+        await ctx.send(pokemon.info())
+
+        embed = discord.Embed()
+        embed.set_image(url=pokemon.sprite)
+        await ctx.send(embed=embed)
+
     else:
-        await ctx.send("Zaten kendi Pokémonunuzu oluşturdunuz!")  # Bir Pokémon'un daha önce oluşturulup oluşturulmadığını gösteren bir mesaj
-# Botun çalıştırılması
+        await ctx.send("Zaten Pokémonun var!")
+
+
+# 🔹 Besleme
+@bot.command()
+async def feed(ctx):
+    author = ctx.author.name
+
+    if author not in Pokemon.pokemons:
+        await ctx.send("Önce Pokémon oluştur! (!go)")
+        return
+
+    pokemon = Pokemon.pokemons[author]
+    result = pokemon.feed()
+
+    await ctx.send(result)
+
+
+# 🔹 Bilgi göster
+@bot.command()
+async def info(ctx):
+    author = ctx.author.name
+
+    if author not in Pokemon.pokemons:
+        await ctx.send("Pokémonun yok!")
+        return
+
+    pokemon = Pokemon.pokemons[author]
+    await ctx.send(pokemon.info())
+
+
+# 🔹 İyileştirme
+@bot.command()
+async def heal(ctx):
+    author = ctx.author.name
+
+    if author not in Pokemon.pokemons:
+        await ctx.send("Pokémonun yok!")
+        return
+
+    pokemon = Pokemon.pokemons[author]
+    await ctx.send(pokemon.heal())
+
+@bot.command()
+async def attack(ctx):
+    target = ctx.message.mentions[0] if ctx.message.mentions else None  # Mesajda belirtilen kullanıcıyı alırız
+    if target:  # Kullanıcının belirtilip belirtilmediğini kontrol ederiz
+        # Hem saldırganın hem de hedefin Pokémon sahibi olup olmadığını kontrol ederiz
+        if target.name in Pokemon.pokemons and ctx.author.name in Pokemon.pokemons:
+            enemy = Pokemon.pokemons[target.name]  # Hedefin Pokémon'unu alırız
+            attacker = Pokemon.pokemons[ctx.author.name]  # Saldırganın Pokémon'unu alırız
+            result = await attacker.attack(enemy)  # Saldırıyı gerçekleştirir ve sonucu alırız
+            await ctx.send(result)  # Saldırı sonucunu göndeririz
+        else:
+            await ctx.send("Savaş için her iki tarafın da Pokémon sahibi olması gerekir!")  # Katılımcılardan birinin Pokémon'u yoksa bilgilendiririz
+    else:
+        await ctx.send("Saldırmak istediğiniz kullanıcıyı etiketleyerek belirtin.")  # Saldırmak için kullanıcıyı etiketleyerek belirtmesini isteriz
+
 bot.run(token)
