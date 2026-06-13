@@ -1,134 +1,83 @@
 import aiohttp
 import random
-
+from random import randint
+from datetime import datetime, timedelta
+from discord.ext import commands
 
 class Pokemon:
     pokemons = {}
 
     def __init__(self, pokemon_trainer):
         self.pokemon_trainer = pokemon_trainer
-
-        chance = random.randint(1, 100)
-        if chance <= 5:
-            self.pokemon_number = random.randint(800, 1000)
-            self.is_rare = True
-        else:
-            self.pokemon_number = random.randint(1, 500)
-            self.is_rare = False
-
-        # 🔥 Yeni özellikler
-        self.level = 1
-        self.xp = 0
-        self.hunger = 100
-
-        self.hp = random.randint(80, 120)
-        self.power = random.randint(10, 20)
-
-        # API verileri
+        self.pokemon_number = random.randint(1, 1000)
         self.name = None
-        self.height = None
-        self.weight = None
-        self.types = []
-        self.abilities = []
-        self.stats = {}
-        self.sprite = None
+        self.img = None
+        self.power = random.randint(30, 60)
+        self.hp = random.randint(200, 400)
+        self.last_feed_time = datetime.now()
+        if pokemon_trainer not in self.pokemons:
+            self.pokemons[pokemon_trainer] = self
 
-        if pokemon_trainer not in Pokemon.pokemons:
-            Pokemon.pokemons[pokemon_trainer] = self
-
-    async def fetch_data(self):
+    async def get_name(self):
         url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'
-
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-
-                    self.name = data['name']
-                    self.height = data['height']
-                    self.weight = data['weight']
-
-                    self.types = [t['type']['name'] for t in data['types']]
-                    self.abilities = [a['ability']['name'] for a in data['abilities']]
-
-                    self.stats = {
-                        stat['stat']['name']: stat['base_stat']
-                        for stat in data['stats']
-                    }
-
-                    self.sprite = data['sprites']['front_default']
+                    return data['forms'][0]['name']
                 else:
-                    self.name = "pikachu"
-                    self.sprite = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png"
+                    return "Pikachu"
 
-    # 🔥 GENEL SALDIRI
-    def attack(self, other):
-        damage = self.power
-        other.hp -= damage
-        return f"{self.name} {other.name}'e {damage} hasar verdi!"
+    async def info(self):
+        if not self.name:
+            self.name = await self.get_name()
+        return f"""Pokémon ismi: {self.name}
+                Pokémon gücü: {self.power}
+                Pokémon sağlığı: {self.hp}"""
 
-    # 🔥 CAN YENİLEME
-    def heal(self):
-        self.hp += 20
-        return f"{self.name} iyileşti! HP: {self.hp}"
+    async def show_img(self):
+        url = f'https://pokeapi.co/api/v2/pokemon/{self.pokemon_number}'
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    img_url = data['sprites']['front_default']
+                    return img_url
+                else:
+                    return None
 
-    def feed(self):
-        self.xp += 10
-        self.hunger = min(100, self.hunger + 20)
+    async def attack(self, enemy):
+        if isinstance(enemy, Wizard):
+            chance = randint(1, 5)
+            if chance == 1:
+                return "Sihirbaz Pokémon, savaşta bir kalkan kullandı!"
+        if enemy.hp > self.power:
+            enemy.hp -= self.power
+            return f"Pokémon eğitmeni @{self.pokemon_trainer} @{enemy.pokemon_trainer}'ne saldırdı\n@{enemy.pokemon_trainer}'nin sağlık durumu şimdi {enemy.hp}"
+        else:
+            enemy.hp = 0
+            return f"Pokémon eğitmeni @{self.pokemon_trainer} @{enemy.pokemon_trainer}'ni yendi!"
+    
+    async def feed(self, feed_interval=20, hp_increase=10):
+        current_time = datetime.now()
+        delta_time = timedelta(seconds=feed_interval)
+        
+        if (current_time - self.last_feed_time) > delta_time:
+            self.hp += hp_increase
+            self.last_feed_time = current_time
+            return f"Pokémon sağlığı geri yüklendi. Mevcut sağlık: {self.hp}"
+        else:
+            next_feed_time = self.last_feed_time + delta_time
+            return f"Pokémonunuzu henüz besleyemezsiniz. Bir sonraki besleme zamanı: {next_feed_time.strftime('%H:%M:%S')}"
 
-        if self.xp >= self.level * 50:
-            self.xp = 0
-            self.level += 1
-            self.hp += 10  # 🔥 level bonusu
-            return f"{self.name} seviye atladı! Yeni level: {self.level}"
-
-        return f"{self.name} beslendi! XP: {self.xp}"
-
-    def get_attack(self):
-        return self.stats.get("attack", 0)
-
-    def info(self):
-        return (
-            f"İsim: {self.name}\n"
-            f"Level: {self.level}\n"
-            f"HP: {self.hp}\n"
-            f"Güç: {self.power}\n"
-            f"Nadir: {'Evet' if self.is_rare else 'Hayır'}\n"
-            f"Türler: {', '.join(self.types)}\n"
-        )
-
-
-# 🔮 Sihirbaz sınıfı
 class Wizard(Pokemon):
-    def __init__(self, pokemon_trainer):
-        super().__init__(pokemon_trainer)
-        self.hp += 30  # daha fazla sağlık
+    # Bu sınıfta, Sihirbaz sınıfına özgü metotlar  ve özellikler ekleyebiliriz
+    pass
 
-    def attack(self, other):
-        # kalkan şansı
-        if random.random() < 0.3:
-            return f"{self.name} sihirli kalkan açtı! Hasar almadı!"
-        return super().attack(other)
-
-    def info(self):
-        base = super().info()
-        return "Sihirbaz pokémonunuz var.\n" + base
-
-
-# 🥊 Dövüşçü sınıfı
 class Fighter(Pokemon):
-    def __init__(self, pokemon_trainer):
-        super().__init__(pokemon_trainer)
-        self.power += 10  # daha güçlü
-
-    def attack(self, other):
-        # kritik vurma
-        if random.random() < 0.3:
-            damage = self.power * 2
-            other.hp -= damage
-            return f"{self.name} KRİTİK vurdu! {damage} hasar!"
-        return super().attack(other)
-
-    def info(self):
-        base = super().info()
-        return "Dövüşçü pokémonunuz var.\n" + base
+    async def attack(self, enemy):
+        super_power = randint(5, 15)
+        self.power += super_power
+        result = await super().attack(enemy)
+        self.power -= super_power
+        return result + f"\nDövüşçü Pokémon süper saldırı kullandı. Eklenen güç: {super_power}"
